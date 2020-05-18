@@ -1,0 +1,313 @@
+---
+title: "Logistic Regression in R"
+output:
+  html_document:
+    df_print: paged
+---
+```{r setup, include=FALSE}
+library(mice)
+library(caTools)
+library(ROCR) 
+```
+## Pima Indians Diabetes Prediction (Cont)
+
+Follow the lab Decision Tree in R this lab will apply the Logistic Regression on the Pima Indians Diabetes dataset. The data exploration, imputation please look at my previous lab, this lab will inherit from that.
+
+<h3>1. Import dataset</h3>
+```{r, echo = FALSE}
+data_dib <-  read.csv("diabetes.csv")
+data_dib$Outcome <- factor(data_dib$Outcome, levels = c(0,1), labels = c('1','2'))
+data_dib[data_dib == 0] <- NA
+```
+```{r}
+str(data_dib)
+```
+<h3>2. Imputation</h3>
+```{r}
+imputed_data <- mice(data_dib, method = 'pmm', seed = 123)
+data_dib_imp <- complete(imputed_data)
+```
+<h3>3. Stratified sampling</h3>
+The sampling will devide 70% instanses of the dataset will go for training and 30% will go for validating
+```{r, echo=FALSE}
+set.seed(123)
+split <- sample.split(data_dib_imp$Outcome, SplitRatio = 0.7)
+training_set = subset(data_dib_imp, split == TRUE)
+test_set = subset(data_dib_imp, split == FALSE)
+test_set_woimp = subset(data_dib, split == FALSE)
+```
+```{r}
+str(training_set)
+str(test_set)
+```
+The proposion of the prediction variable in training set and test set:
+```{r}
+prop.table(table(training_set$Outcome))
+prop.table(table(test_set$Outcome))
+```
+<h3>4. Default Logistic Regression Traing</h3>
+```{r}
+classifier = glm(Outcome ~.,training_set, family = binomial)
+summary(classifier)
+```
+3 significant features are: Glucose, BMI and Pregnancies
+<h3>5. Logistic Regression Training With Significant Features Only </h3>
+As mention below there are 3 significant features: Glucose, BMI and Pregnancies, this classfier will base only on those 3 features.
+```{r}
+classifier_sig = glm(Outcome ~ Glucose+BMI+Pregnancies,training_set, family = binomial)
+summary(classifier_sig)
+```
+AIC now is 491.9 lower than 495.19 of the previous classifier.
+<h3>6. Logistic Regression Training With Significant Features Only and Scaling</h3>
+```{r}
+training_set[ ,1:8] = scale(training_set[ , 1:8])
+classifier_sca = glm(Outcome ~ Glucose+BMI+Pregnancies,training_set, family = binomial)
+summary(classifier_sca)
+```
+AIC value keep same as Logistic Regression Training With Significant Features Only, but the coefficients of each varible is little bit different.
+<h3>7. Preditction Result</h3>
+```{r}
+pred = predict(classifier, type = 'response', test_set[ ,-9] )
+pred = ifelse(pred > 0.5, 1, 0)
+pred_sig = predict(classifier_sig, type = 'response', test_set[ ,-9] )
+pred_sig = ifelse(pred_sig > 0.5, 1, 0)
+pred_sca = predict(classifier_sca, type = 'response', test_set[ ,-9] )
+pred_sca = ifelse(pred_sca > 0.5, 1, 0)
+cm = table(test_set$Outcome, pred)
+cm_sig = table(test_set$Outcome, pred_sig)
+cm_sca = table(test_set$Outcome, pred_sca)
+```
+```{r, echo=FALSE}
+accuracy = sum(diag(cm))/sum(cm)
+accuracy_sig = sum(diag(cm_sig))/sum(cm_sig)
+accuracy_sca = sum(diag(cm_sca))/sum(cm_sca)
+
+pred_train = predict(classifier, type = 'response', training_set[ ,-9] )
+pred_train = ifelse(pred_train > 0.5, 1, 0)
+pred_sig_train = predict(classifier_sig, type = 'response', training_set[ ,-9] )
+pred_sig_train = ifelse(pred_sig_train > 0.5, 1, 0)
+pred_sca_train = predict(classifier_sca, type = 'response', training_set[ ,-9] )
+pred_sca_train = ifelse(pred_sca_train > 0.5, 1, 0)
+
+cm_train = table(training_set$Outcome, pred_train)
+cm_sig_train = table(training_set$Outcome, pred_sig_train)
+cm_sca_train = table(training_set$Outcome, pred_sca_train)
+
+accuracy_train = sum(diag(cm_train))/sum(cm_train)
+accuracy_sig_train = sum(diag(cm_sig_train))/sum(cm_sig_train)
+accuracy_sca_train = sum(diag(cm_sca_train))/sum(cm_sca_train)
+```
+The accuracy of 3 models above on training set and test set:
+<table class="table table-bordered" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Default Logistic Regression Traing
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Logistic Regression Training With Significant Features Only
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center;" colspan="2">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Logistic Regression Training With Significant Features Only and Scaling
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:right;">
+Accuracy on training set
+</th>
+<th style="text-align:right;">
+Accuracy on test set
+</th>
+<th style="text-align:right;">
+Accuracy on training set
+</th>
+<th style="text-align:right;">
+Accuracy on test set
+</th>
+<th style="text-align:right;">
+Accuracy on training set
+</th>
+<th style="text-align:right;">
+Accuracy on test set
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.6505576
+</td>
+<td style="text-align:right;">
+0.7652174
+</td>
+<td style="text-align:right;">
+0.6505576
+</td>
+<td style="text-align:right;">
+0.7608696
+</td>
+<td style="text-align:right;">
+0.7713755
+</td>
+<td style="text-align:right;">
+0.6521739
+</td>
+</tr>
+</tbody>
+</table>
+The Logistic Regression Training With Significant Features Only and Scaling seems become overfitting the distance between the accuracy on training set and on test set is far away, it leads to the the accuracy on the test set lowest among 3 models.
+The ROC curve of 3 models on test set
+```{r, echo=FALSE}
+predict_roc <- predict(classifier, type = 'response', test_set[ ,-9] )
+predict_sig_roc <- predict(classifier_sig, type = 'response', test_set[ ,-9] )
+predict_sca_roc <- predict(classifier_sca, type = 'response', test_set[ ,-9] )
+
+pred_roc <- prediction(predict_roc, test_set$Outcome)
+pred_sig_roc <- prediction(predict_sig_roc, test_set$Outcome)
+pred_sca_roc <- prediction(predict_sca_roc, test_set$Outcome)
+
+perf <- performance(pred_roc, measure = "tpr", x.measure = "fpr")
+perf_sig <- performance(pred_sig_roc, measure = "tpr", x.measure = "fpr")
+perf_sca <- performance(pred_sca_roc, measure = "tpr", x.measure = "fpr")
+
+auc_def = as.numeric(performance(pred_roc, "auc")@y.values)
+auc_def = round(auc_def, 3)
+auc_sig = as.numeric(performance(pred_sig_roc, "auc")@y.values)
+auc_sig = round(auc_sig, 3)
+auc_sca = as.numeric(performance(pred_sca_roc, "auc")@y.values)
+auc_sca = round(auc_sca, 3)
+```
+```{r}
+plot(perf,
+     main = "ROC curve",
+     ylab = "Sensitivity",
+     xlab = "Specificity", col = "red")
+plot(perf_sig, add = TRUE, col = "blue")
+plot(perf_sca, add = TRUE, col = "green")
+legend("bottomright", c("Default", "Only Significant Variables", "Only Significant Variables And Scaling"), lty=1, 
+    col = c("red", "blue","green"), bty="n")
+```
+The AUC summary table of 3 models:
+<table class="table table-bordered" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; ">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Default Logistic Regression Traing
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; ">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Logistic Regression Training With Significant Features Only
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center;">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Logistic Regression Training With Significant Features Only and Scaling
+</div>
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.822
+</td>
+<td style="text-align:right;">
+0.813
+</td>
+<td style="text-align:right;">
+0.5
+</td>
+</tr>
+</tbody>
+</table>
+The Default Logistic Regression model show outperform between 3 models with the highest AUC, which also a reason it has the highest accuracy. The second rank is belong to Logistic Regression With Significant Features Only model with the AUC value slightly lower than Default Logistic Regression. The AUC of  Logistic Regression Training With Significant Features Only and Scaling is 0.5 can be said like toss a coint.
+<h3>8. Prediction Result In Decision Tree</h3>
+The prediction accuracy of the 4 models based on Decision Tree:
+<table class="table table-bordered" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; ">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Default Parameter Decision Tree
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; ">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Decision Tree using Information Gain index
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center;">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Decision Tree using Entropy index
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center;">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Parameter Decision Tree
+</div>
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.6956522
+</td>
+<td style="text-align:right;">
+0.6913043
+</td>
+<td style="text-align:right;">
+0.6956522
+</td>
+<td style="text-align:right;">
+0.7043478
+</td>
+</tr>
+</tbody>
+</table>
+<h3>9. Prediction Result In Naïve Bayes</h3>
+The prediction accuracy of the 3 models based on Naïve Bayes:
+<table class="table table-bordered" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; ">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Default Naïve Bayes
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; ">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Naïve Bayes using Laplace
+</div>
+</th>
+<th style="border-bottom:hidden; padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center;">
+<div style="border-bottom: 1px solid #ddd; padding-bottom: 5px; ">
+Naïve Bayes using Kernel
+</div>
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.7652174
+</td>
+<td style="text-align:right;">
+0.7652174
+</td>
+<td style="text-align:right;">
+0.7913043
+</td>
+</tr>
+</tbody>
+</table>
+<h3>10. Conclusion</h3>
+The accuracy of the best Logistic Regression model higher than the best model based on Decision Tree, but still behind the highest model based on Naïve Bayes.
